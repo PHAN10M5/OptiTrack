@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,12 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Save } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
+import * as api from "@/api/api" // Import API service
+import { CreateEmployeePayload } from "@/types" // Import types
 
 export default function AddEmployeePage() {
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<CreateEmployeePayload>({
         firstName: "",
         lastName: "",
-        department: "",
+        department: null, // Initialize department as null or undefined as per backend
     })
     const [isLoading, setIsLoading] = useState(false)
     const { toast } = useToast()
@@ -38,16 +39,32 @@ export default function AddEmployeePage() {
 
         setIsLoading(true)
 
-        // Simulate API call
-        setTimeout(() => {
+        try {
+            const payload: CreateEmployeePayload = {
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                // Ensure that the special "none-selected" value is converted back to null for the backend
+                department: formData.department === "none-selected" ? null : formData.department,
+            };
+            await api.createEmployee(payload)
             toast({
                 id: "success",
                 title: "Success!",
-                description: "Employee has been added successfully.",
+                description: `Employee ${formData.firstName} ${formData.lastName} has been added successfully.`,
+                variant: "success", // Use custom success variant
             })
+            setFormData({ firstName: "", lastName: "", department: null }) // Reset form
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || error.message || "An unexpected error occurred."
+            toast({
+                id: "error",
+                title: "Error adding employee",
+                description: errorMessage,
+                variant: "destructive",
+            })
+        } finally {
             setIsLoading(false)
-            setFormData({ firstName: "", lastName: "", department: "" })
-        }, 1000)
+        }
     }
 
     return (
@@ -101,13 +118,19 @@ export default function AddEmployeePage() {
                             <div className="space-y-2">
                                 <Label htmlFor="department">Department</Label>
                                 <Select
-                                    value={formData.department}
-                                    onValueChange={(value) => setFormData({ ...formData, department: value })}
+                                    // If formData.department is null, use "none-selected" for the Select component's value
+                                    value={formData.department === null ? "none-selected" : formData.department}
+                                    onValueChange={(value) =>
+                                        // Convert "none-selected" back to null when updating state
+                                        setFormData({ ...formData, department: value === "none-selected" ? null : value })
+                                    }
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select a department (optional)" />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        {/* Use a distinct, non-empty string value for the "None" option */}
+                                        <SelectItem value="none-selected">None</SelectItem>
                                         {departments.map((dept) => (
                                             <SelectItem key={dept} value={dept}>
                                                 {dept}
@@ -131,7 +154,8 @@ export default function AddEmployeePage() {
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => setFormData({ firstName: "", lastName: "", department: "" })}
+                                    onClick={() => setFormData({ firstName: "", lastName: "", department: null })}
+                                    disabled={isLoading}
                                 >
                                     Clear Form
                                 </Button>

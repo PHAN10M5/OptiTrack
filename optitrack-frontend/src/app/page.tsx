@@ -6,29 +6,133 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Users, UserCheck, UserX, Plus, Timer, ClockIcon, DollarSign } from "lucide-react"
 import Link from "next/link"
+import { useToast } from "@/hooks/use-toast"
+import * as api from "@/api/api" // Import API service
+import { Employee, Punch, OvertimeRequest } from "@/types" // Import types
+
+// Define the type for a recent activity item
+interface RecentActivityItem {
+  id: number;
+  employee: string;
+  action: string;
+  time: string;
+  type: "in" | "out";
+}
 
 export default function Dashboard() {
+  const { toast } = useToast()
   const [currentTime, setCurrentTime] = useState(new Date())
-  const [stats] = useState({
-    totalEmployees: 24,
-    clockedIn: 18,
-    clockedOut: 6,
-    todayPunches: 42,
-    overtimeHours: 26.5,
-    overtimePay: 3815,
-  })
+
+  // State for fetched data
+  const [totalEmployees, setTotalEmployees] = useState(0)
+  const [clockedInCount, setClockedInCount] = useState(0)
+  const [clockedOutCount, setClockedOutCount] = useState(0)
+  const [overtimeHoursTotal, setOvertimeHoursTotal] = useState(0)
+  const [overtimePayTotal, setOvertimePayTotal] = useState(0)
+
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Define a constant for overtime pay rate (e.g., $25 per hour)
+  const OVERTIME_PAY_RATE_PER_HOUR = 25.0;
+
+  // --- Sections that require new backend endpoints for real data ---
+  // To get "Today's Punches" accurately, a backend endpoint like /api/punches/today
+  // or /api/punches?date=YYYY-MM-DD would be needed.
+  const [todayPunches] = useState(0); // Set to 0, as it's not fetched dynamically yet
+
+  // To get "Recent Activity" (latest punches across all employees), a backend endpoint
+  // like /api/punches/recent?limit=X would be ideal.
+  // Explicitly type the array to resolve TypeScript errors.
+  const [recentActivity] = useState<RecentActivityItem[]>([]); // Set to empty array, as it's not fetched dynamically yet
+  // --- End Sections that require new backend endpoints ---
+
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
 
-  const recentActivity = [
-    { id: 1, employee: "John Doe", action: "Clock In", time: "09:15 AM", type: "in" },
-    { id: 2, employee: "Sarah Smith", action: "Clock Out", time: "09:10 AM", type: "out" },
-    { id: 3, employee: "Mike Johnson", action: "Clock In", time: "09:05 AM", type: "in" },
-    { id: 4, employee: "Emily Davis", action: "Clock In", time: "09:00 AM", type: "in" },
-  ]
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        // Fetch Employees
+        const employees: Employee[] = await api.getEmployees()
+        setTotalEmployees(employees.length)
+
+        // Calculate Clocked In/Out Status
+        // This currently performs N+1 queries (1 for all employees, then N for each employee's punches).
+        // For larger datasets, a dedicated backend endpoint like /api/employees/status
+        // that returns all employees with their last punch status would be more efficient.
+        let inCount = 0
+        let outCount = 0
+        for (const emp of employees) {
+          try {
+            const punches: Punch[] = await api.getPunchesByEmployeeId(emp.id)
+            if (punches.length > 0) {
+              // Find the last punch by timestamp
+              const lastPunch = punches.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+              if (lastPunch.punchType === "IN") {
+                inCount++
+              } else {
+                outCount++
+              }
+            } else {
+              outCount++; // Assume not clocked in if no punches
+            }
+          } catch (punchErr: any) {
+            // Log warning but don't block dashboard load if one employee's punches fail
+            console.warn(`Could not fetch punches for employee ID ${emp.id}: ${punchErr.message}`);
+            outCount++; // Default to clocked out if punches can't be retrieved
+          }
+        }
+        setClockedInCount(inCount)
+        setClockedOutCount(outCount)
+
+        // Fetch Overtime Requests
+        const overtimeRequests: OvertimeRequest[] = await api.getOvertimeRequests()
+        const approvedOvertime = overtimeRequests.filter(req => req.status === "APPROVED")
+        const totalOvertimeHours = approvedOvertime.reduce((sum, req) => sum + req.requestedHours, 0)
+        setOvertimeHoursTotal(totalOvertimeHours)
+
+        // Calculate total overtime pay based on the defined rate
+        setOvertimePayTotal(totalOvertimeHours * OVERTIME_PAY_RATE_PER_HOUR)
+
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.message || err.message || "Failed to fetch dashboard data.";
+        setError(errorMessage)
+        toast({
+          id: "dashboard-error",
+          title: "Error",
+          description: `Failed to load dashboard data: ${errorMessage}`,
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [toast]) // Dependency on toast to ensure it's available
+
+  if (loading) {
+    return (
+        <div className="flex-1 flex items-center justify-center p-6 text-xl text-muted-foreground">
+          Loading dashboard data...
+        </div>
+    );
+  }
+
+  if (error) {
+    return (
+        <div className="flex-1 flex items-center justify-center p-6 text-xl text-red-600">
+          Error: {error}
+        </div>
+    );
+  }
+
 
   return (
       <div className="space-y-6">
@@ -119,7 +223,7 @@ export default function Dashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalEmployees}</div>
+              <div className="text-2xl font-bold">{totalEmployees}</div>
               <p className="text-xs text-muted-foreground">Active employees</p>
             </CardContent>
           </Card>
@@ -130,7 +234,7 @@ export default function Dashboard() {
               <UserCheck className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.clockedIn}</div>
+              <div className="text-2xl font-bold text-green-600">{clockedInCount}</div>
               <p className="text-xs text-muted-foreground">Currently working</p>
             </CardContent>
           </Card>
@@ -141,7 +245,7 @@ export default function Dashboard() {
               <UserX className="h-4 w-4 text-red-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.clockedOut}</div>
+              <div className="text-2xl font-bold text-red-600">{clockedOutCount}</div>
               <p className="text-xs text-muted-foreground">Not working</p>
             </CardContent>
           </Card>
@@ -152,8 +256,8 @@ export default function Dashboard() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.todayPunches}</div>
-              <p className="text-xs text-muted-foreground">Total punch events</p>
+              <div className="text-2xl font-bold">{todayPunches}</div> {/* Currently simulated. Requires backend endpoint for real data. */}
+              <p className="text-xs text-muted-foreground">Total punch events (simulated)</p>
             </CardContent>
           </Card>
 
@@ -163,8 +267,8 @@ export default function Dashboard() {
               <ClockIcon className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{stats.overtimeHours}</div>
-              <p className="text-xs text-muted-foreground">This week</p>
+              <div className="text-2xl font-bold text-orange-600">{overtimeHoursTotal.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">Approved this period</p>
             </CardContent>
           </Card>
 
@@ -174,8 +278,8 @@ export default function Dashboard() {
               <DollarSign className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">${stats.overtimePay}</div>
-              <p className="text-xs text-muted-foreground">Additional compensation</p>
+              <div className="text-2xl font-bold text-green-600">${overtimePayTotal.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">Estimated additional compensation</p>
             </CardContent>
           </Card>
         </div>
@@ -184,26 +288,50 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest clock in/out events</CardDescription>
+            <CardDescription>Latest clock in/out events (Currently simulated. Requires backend endpoint for real data.)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-center justify-between p-3 rounded-lg border">
-                    <div className="flex items-center gap-3">
-                      <div
-                          className={`p-2 rounded-full ${activity.type === "in" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}
-                      >
-                        {activity.type === "in" ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+              {recentActivity.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">No recent activity to display.</p>
+              ) : (
+                  recentActivity.map((activity) => (
+                      <div key={activity.id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div className="flex items-center gap-3">
+                          <div
+                              className={`p-2 rounded-full ${activity.type === "in" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}
+                          >
+                            {activity.type === "in" ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                          </div>
+                          <div>
+                            <p className="font-medium">{activity.employee}</p>
+                            <p className="text-sm text-muted-foreground">{activity.action}</p>
+                          </div>
+                        </div>
+                        <Badge variant={activity.type === "in" ? "default" : "secondary"}>{activity.time}</Badge>
                       </div>
-                      <div>
-                        <p className="font-medium">{activity.employee}</p>
-                        <p className="text-sm text-muted-foreground">{activity.action}</p>
-                      </div>
-                    </div>
-                    <Badge variant={activity.type === "in" ? "default" : "secondary"}>{activity.time}</Badge>
-                  </div>
-              ))}
+                  ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Current Time Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Current Time</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center space-y-2">
+              <div className="text-3xl font-mono font-bold">{currentTime.toLocaleTimeString()}</div>
+              <div className="text-muted-foreground">
+                {currentTime.toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </div>
             </div>
           </CardContent>
         </Card>
