@@ -19,7 +19,6 @@ public class OptitrackBackendApplication {
         }
 
         SpringApplication.run(OptitrackBackendApplication.class, args);
-        System.out.println("OptiTrack Backend Application Started Successfully on port 8081!");
     }
 
 }

@@ -1,13 +1,44 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
-import { Calendar, Clock, Home, Users, BarChart3, Timer, Menu, ClockIcon } from "lucide-react"
+import { useState, useEffect } from "react" // Import useEffect for current time
+import { Calendar, Clock, Home, Users, BarChart3, Timer, Menu } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+
+// Define page information for dynamic header
+const pageInfo = {
+    "/": {
+        title: "Dashboard",
+        description: "Welcome to your employee management system",
+    },
+    "/employees": {
+        title: "Employee Management",
+        description: "Manage your workforce and employee records",
+    },
+    "/employees/add": {
+        title: "Add New Employee",
+        description: "Create a new employee record",
+    },
+    "/punch": {
+        title: "Clock In / Clock Out",
+        description: "Employee time tracking system",
+    },
+    "/punches": {
+        title: "Employee Punches",
+        description: "View detailed clock-in and clock-out records",
+    },
+    "/overtime": {
+        title: "Overtime Management",
+        description: "Track and manage employee overtime hours and compensation",
+    },
+    "/reports": {
+        title: "Reports & Analytics",
+        description: "Generate insights from your employee data.",
+    },
+} as const; // Use 'as const' for type safety with string literals
 
 const menuItems = [
     {
@@ -31,11 +62,6 @@ const menuItems = [
         icon: Calendar,
     },
     {
-        title: "Overtime",
-        url: "/overtime",
-        icon: ClockIcon,
-    },
-    {
         title: "Reports",
         url: "/reports",
         icon: BarChart3,
@@ -44,7 +70,21 @@ const menuItems = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [currentTime, setCurrentTime] = useState(new Date()) // State for current time
     const pathname = usePathname()
+
+    // Update current time every second
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+        return () => clearInterval(timer)
+    }, [])
+
+    // Determine current page info for header
+    const currentPageInfo = pageInfo[pathname as keyof typeof pageInfo] || {
+        title: "OptiTrack System", // Fallback title
+        description: "Your comprehensive employee management solution", // Fallback description
+    };
+
 
     const SidebarContent = () => (
         <div className="flex h-full flex-col">
@@ -112,13 +152,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                                 </SheetTrigger>
                             </Sheet>
                             <div className="hidden sm:block">
-                                <h1 className="text-xl font-semibold">Dashboard</h1>
-                                <p className="text-sm text-muted-foreground">Welcome to your employee management system</p>
+                                {/* Dynamic Header Title and Description */}
+                                <h1 className="text-xl font-semibold">{currentPageInfo.title}</h1>
+                                <p className="text-sm text-muted-foreground">{currentPageInfo.description}</p>
                             </div>
                         </div>
                         <div className="text-right">
-                            <div className="text-lg font-mono font-bold">{new Date().toLocaleTimeString()}</div>
-                            <div className="text-xs text-muted-foreground">{new Date().toLocaleDateString()}</div>
+                            <div className="text-lg font-mono font-bold">{currentTime.toLocaleTimeString()}</div>
+                            <div className="text-xs text-muted-foreground">{currentTime.toLocaleDateString()}</div>
                         </div>
                     </div>
                 </header>

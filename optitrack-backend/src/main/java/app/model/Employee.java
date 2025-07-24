@@ -13,6 +13,15 @@ public class Employee {
     private String department;
     private final List<Punch> punches; // In-memory list of punches for this employee
 
+    // NEW: Public no-argument constructor for Jackson deserialization
+    public Employee() {
+        this.id = 0;
+        this.firstName = null; // Or empty string, depending on desired default
+        this.lastName = null;  // Or empty string
+        this.department = null;
+        this.punches = new ArrayList<>();
+    }
+
     // Constructor for creating new Employee objects (before saving to DB)
     public Employee(String firstName, String lastName) {
         this(0, firstName, lastName, null); // Calls the full constructor with default ID and department

@@ -1,86 +1,179 @@
 "use client"
 
-import { Calendar, Clock, Home, Users, BarChart3, Timer } from "lucide-react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
 
-import {
+import { cn } from "@/lib/utils"
+
+// 1. Root Sidebar Component
+const Sidebar = React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+    <div
+        ref={ref}
+        className={cn(
+            "flex h-full flex-col bg-background text-foreground",
+            className
+        )}
+        {...props}
+    />
+))
+Sidebar.displayName = "Sidebar"
+
+// 2. Sidebar Header
+const SidebarHeader = React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+    <div
+        ref={ref}
+        className={cn("flex items-center justify-between p-4", className)}
+        {...props}
+    />
+))
+SidebarHeader.displayName = "SidebarHeader"
+
+// 3. Sidebar Content Area (main scrollable part)
+const SidebarContent = React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+    <div
+        ref={ref}
+        className={cn("flex-1 overflow-y-auto overflow-x-hidden", className)}
+        {...props}
+    />
+))
+SidebarContent.displayName = "SidebarContent"
+
+// 4. Sidebar Group (for logical grouping of menu items)
+const SidebarGroup = React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+    <div
+        ref={ref}
+        className={cn("flex flex-col gap-1 p-2", className)}
+        {...props}
+    />
+))
+SidebarGroup.displayName = "SidebarGroup"
+
+// 5. Sidebar Group Label (e.g., "Navigation")
+const SidebarGroupLabel = React.forwardRef<
+    HTMLParagraphElement,
+    React.HTMLAttributes<HTMLParagraphElement>
+>(({ className, ...props }, ref) => (
+    <p
+        ref={ref}
+        className={cn("px-2 py-1.5 text-xs font-medium text-muted-foreground", className)}
+        {...props}
+    />
+))
+SidebarGroupLabel.displayName = "SidebarGroupLabel"
+
+// 6. Sidebar Group Content (container for items within a group)
+const SidebarGroupContent = React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+    <div
+        ref={ref}
+        className={cn("flex flex-col gap-1", className)}
+        {...props}
+    />
+))
+SidebarGroupContent.displayName = "SidebarGroupContent"
+
+// 7. Sidebar Menu (a wrapper for menu items)
+const SidebarMenu = React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+    <div
+        ref={ref}
+        className={cn("space-y-1", className)}
+        {...props}
+    />
+))
+SidebarMenu.displayName = "SidebarMenu"
+
+// 8. Sidebar Menu Item (individual list item for a menu button)
+const SidebarMenuItem = React.forwardRef<
+    HTMLLIElement,
+    React.LiHTMLAttributes<HTMLLIElement>
+>(({ className, ...props }, ref) => (
+    <li
+        ref={ref}
+        className={cn("", className)}
+        {...props}
+    />
+))
+SidebarMenuItem.displayName = "SidebarMenuItem"
+
+// 9. Sidebar Menu Button (the actual clickable button inside a menu item)
+const sidebarMenuButtonVariants = cva(
+    "inline-flex items-center justify-start whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-3 py-2 w-full gap-3",
+    {
+        variants: {
+            isActive: {
+                true: "bg-accent text-accent-foreground",
+                false: "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            },
+        },
+        defaultVariants: {
+            isActive: false,
+        },
+    }
+)
+
+interface SidebarMenuButtonProps
+    extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+        VariantProps<typeof sidebarMenuButtonVariants> {
+    asChild?: boolean;
+}
+
+const SidebarMenuButton = React.forwardRef<
+    HTMLButtonElement,
+    SidebarMenuButtonProps
+>(({ className, isActive, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button"
+    return (
+        <Comp
+            className={cn(sidebarMenuButtonVariants({ isActive, className }))}
+            ref={ref}
+            {...props}
+        />
+    )
+})
+SidebarMenuButton.displayName = "SidebarMenuButton"
+
+
+// 10. Sidebar Footer
+const SidebarFooter = React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+    <div
+        ref={ref}
+        className={cn("border-t p-4", className)}
+        {...props}
+    />
+))
+SidebarFooter.displayName = "SidebarFooter"
+
+
+export {
     Sidebar,
+    SidebarHeader,
     SidebarContent,
     SidebarGroup,
-    SidebarGroupContent,
     SidebarGroupLabel,
+    SidebarGroupContent,
     SidebarMenu,
-    SidebarMenuButton,
     SidebarMenuItem,
-    SidebarHeader,
+    SidebarMenuButton,
     SidebarFooter,
-} from "@/components/ui/sidebar"
-
-const menuItems = [
-    {
-        title: "Dashboard",
-        url: "/",
-        icon: Home,
-    },
-    {
-        title: "Employees",
-        url: "/employees",
-        icon: Users,
-    },
-    {
-        title: "Clock In/Out",
-        url: "/punch",
-        icon: Clock,
-    },
-    {
-        title: "View Punches",
-        url: "/punches",
-        icon: Calendar,
-    },
-    {
-        title: "Reports",
-        url: "/reports",
-        icon: BarChart3,
-    },
-]
-
-export function AppSidebar() {
-    const pathname = usePathname()
-
-    return (
-        <Sidebar>
-            <SidebarHeader className="border-b border-sidebar-border">
-                <div className="flex items-center gap-2 px-4 py-3">
-                    <Timer className="h-6 w-6 text-blue-600 flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                        <h1 className="text-base font-semibold truncate">TimeTracker</h1>
-                        <p className="text-xs text-muted-foreground truncate">Employee Clock System</p>
-                    </div>
-                </div>
-            </SidebarHeader>
-            <SidebarContent>
-                <SidebarGroup>
-                    <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-                    <SidebarGroupContent>
-                        <SidebarMenu>
-                            {menuItems.map((item) => (
-                                <SidebarMenuItem key={item.title}>
-                                    <SidebarMenuButton asChild isActive={pathname === item.url}>
-                                        <Link href={item.url}>
-                                            <item.icon />
-                                            <span>{item.title}</span>
-                                        </Link>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
-                            ))}
-                        </SidebarMenu>
-                    </SidebarGroupContent>
-                </SidebarGroup>
-            </SidebarContent>
-            <SidebarFooter className="border-t border-sidebar-border">
-                <div className="p-3 text-xs text-muted-foreground">© 2024 TimeTracker System</div>
-            </SidebarFooter>
-        </Sidebar>
-    )
 }

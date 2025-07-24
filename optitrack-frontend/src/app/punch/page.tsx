@@ -8,87 +8,94 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Clock, UserCheck, UserX, AlertCircle, CheckCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import * as api from "@/api/api" // Import API service
+import { Punch, Employee } from "@/types" // Import Punch and Employee types
 
 export default function PunchPage() {
     const [employeeId, setEmployeeId] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [currentTime, setCurrentTime] = useState(new Date())
-    const [lastPunch, setLastPunch] = useState<{
-        type: "in" | "out"
-        time: string
-        employee: string
-    } | null>(null)
+    const [lastPunch, setLastPunch] = useState<Punch | null>(null)
+    const [lastPunchEmployeeName, setLastPunchEmployeeName] = useState<string | null>(null)
     const { toast } = useToast()
 
+    // Update current time every second
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000)
         return () => clearInterval(timer)
     }, [])
 
-    const handleClockIn = async () => {
-        if (!employeeId.trim()) {
-            toast({
-                id: "validation-error",
-                title: "Error",
-                description: "Please enter an Employee ID.",
-                variant: "destructive",
-            })
-            return
+    // Function to fetch employee name
+    const fetchEmployeeName = async (id: number) => {
+        try {
+            const employee: Employee = await api.getEmployeeById(id)
+            return `${employee.firstName} ${employee.lastName}`
+        } catch (err) {
+            console.error(`Failed to fetch employee name for ID ${id}:`, err)
+            return `ID: ${id}` // Fallback to ID if name cannot be fetched
         }
-
-        setIsLoading(true)
-
-        // Simulate API call
-        setTimeout(() => {
-            const now = new Date()
-            setLastPunch({
-                type: "in",
-                time: now.toLocaleString(),
-                employee: employeeId,
-            })
-
-            toast({
-                id: "clock-in-success",
-                title: "Clock-in Successful!",
-                description: `Employee ${employeeId} clocked in at ${now.toLocaleTimeString()}`,
-            })
-
-            setIsLoading(false)
-            setEmployeeId("")
-        }, 1000)
     }
 
-    const handleClockOut = async () => {
+    const handlePunch = async (punchType: 'IN' | 'OUT') => {
         if (!employeeId.trim()) {
             toast({
                 id: "validation-error",
-                title: "Error",
+                title: "Validation Error",
                 description: "Please enter an Employee ID.",
                 variant: "destructive",
             })
             return
         }
 
-        setIsLoading(true)
-
-        // Simulate API call
-        setTimeout(() => {
-            const now = new Date()
-            setLastPunch({
-                type: "out",
-                time: now.toLocaleString(),
-                employee: employeeId,
+        const id = parseInt(employeeId)
+        if (isNaN(id)) {
+            toast({
+                id: "validation-error",
+                title: "Validation Error",
+                description: "Employee ID must be a number.",
+                variant: "destructive",
             })
+            return
+        }
+
+        setIsLoading(true)
+        setLastPunch(null); // Clear previous punch status
+        setLastPunchEmployeeName(null);
+
+        try {
+            let responsePunch: Punch;
+            if (punchType === 'IN') {
+                responsePunch = await api.clockIn({ employeeId: id });
+            } else {
+                responsePunch = await api.clockOut({ employeeId: id });
+            }
+
+            setLastPunch(responsePunch);
+            const name = await fetchEmployeeName(responsePunch.employeeId);
+            setLastPunchEmployeeName(name);
 
             toast({
-                id: "clock-out-success",
-                title: "Clock-out Successful!",
-                description: `Employee ${employeeId} clocked out at ${now.toLocaleTimeString()}`,
-            })
+                id: "success",
+                title: `Clock-${punchType === 'IN' ? 'in' : 'out'} Successful!`,
+                description: `Employee ${name} (ID: ${id}) clocked ${punchType.toLowerCase()} at ${new Date(responsePunch.timestamp).toLocaleTimeString()}.`,
+                variant: "success",
+            });
 
-            setIsLoading(false)
-            setEmployeeId("")
-        }, 1000)
+            setEmployeeId(""); // Clear input on success
+
+        } catch (err: any) {
+            const errorMessage = err.response?.data?.message || err.message || `Failed to clock ${punchType.toLowerCase()}.`;
+            console.error(`Error clocking ${punchType.toLowerCase()}:`, err);
+
+            toast({
+                id: "error",
+                title: "Error",
+                description: errorMessage,
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoading(false);
+        }
     }
 
     return (
@@ -114,16 +121,17 @@ export default function PunchPage() {
                             <Label htmlFor="employeeId">Employee ID</Label>
                             <Input
                                 id="employeeId"
+                                type="number" // Ensure numeric input
                                 value={employeeId}
                                 onChange={(e) => setEmployeeId(e.target.value)}
-                                placeholder="Enter your Employee ID (e.g., EMP001)"
+                                placeholder="Enter your Employee ID (e.g., 101)"
                                 className="text-center text-lg"
                             />
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Button
-                                onClick={handleClockIn}
+                                onClick={() => handlePunch('IN')}
                                 disabled={isLoading}
                                 size="lg"
                                 className="h-16 text-lg bg-green-600 hover:bg-green-700"
@@ -133,7 +141,7 @@ export default function PunchPage() {
                             </Button>
 
                             <Button
-                                onClick={handleClockOut}
+                                onClick={() => handlePunch('OUT')}
                                 disabled={isLoading}
                                 size="lg"
                                 variant="destructive"
@@ -144,11 +152,11 @@ export default function PunchPage() {
                             </Button>
                         </div>
 
-                        {lastPunch && (
-                            <Alert className={lastPunch.type === "in" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
-                                <CheckCircle className={`h-4 w-4 ${lastPunch.type === "in" ? "text-green-600" : "text-red-600"}`} />
+                        {lastPunch && lastPunchEmployeeName && (
+                            <Alert className={lastPunch.punchType === "IN" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+                                <CheckCircle className={`h-4 w-4 ${lastPunch.punchType === "IN" ? "text-green-600" : "text-red-600"}`} />
                                 <AlertDescription className="font-medium">
-                                    Last Action: Employee {lastPunch.employee} clocked {lastPunch.type} at {lastPunch.time}
+                                    Last Action: Employee {lastPunchEmployeeName} (ID: {lastPunch.employeeId}) clocked {lastPunch.punchType.toLowerCase()} at {new Date(lastPunch.timestamp).toLocaleTimeString()}
                                 </AlertDescription>
                             </Alert>
                         )}
