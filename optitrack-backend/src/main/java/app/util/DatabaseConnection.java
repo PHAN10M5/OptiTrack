@@ -7,7 +7,8 @@ import java.sql.Statement;
 
 public class DatabaseConnection {
     // MySQL connection details for XAMPP
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/optitrackdatabase"; // Using standard MySQL port 3306
+    // IMPORTANT: Ensure this DB_URL matches the actual database name in phpMyAdmin
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/optitrackdatabase"; // CHANGED: from optitrack_db to optitrackdatabase
     private static final String DB_USER = "root"; // Default XAMPP MySQL username
     private static final String DB_PASSWORD = ""; // Default XAMPP MySQL password (empty)
 
@@ -37,7 +38,7 @@ public class DatabaseConnection {
 
             // Create employees table for MySQL
             String createEmployeesTableSQL = "CREATE TABLE IF NOT EXISTS employees (" +
-                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," + // Use BIGINT for ID and AUTO_INCREMENT
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
                     "first_name VARCHAR(255) NOT NULL," +
                     "last_name VARCHAR(255) NOT NULL," +
                     "department VARCHAR(255)" +
@@ -47,10 +48,10 @@ public class DatabaseConnection {
 
             // Create punches table for MySQL
             String createPunchesTableSQL = "CREATE TABLE IF NOT EXISTS punches (" +
-                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," + // Use BIGINT for ID and AUTO_INCREMENT
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
                     "employee_id BIGINT NOT NULL," +
-                    "punch_type VARCHAR(10) NOT NULL," + // 'IN' or 'OUT'
-                    "timestamp DATETIME NOT NULL," + // Use DATETIME for timestamps
+                    "punch_type VARCHAR(10) NOT NULL," +
+                    "timestamp DATETIME NOT NULL," +
                     "FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE" +
                     ");";
             stmt.execute(createPunchesTableSQL);
@@ -62,7 +63,7 @@ public class DatabaseConnection {
                     "employee_id BIGINT NOT NULL," +
                     "request_date_time DATETIME NOT NULL," +
                     "requested_hours DOUBLE NOT NULL," +
-                    "status VARCHAR(50) NOT NULL," + // e.g., PENDING, APPROVED, REJECTED
+                    "status VARCHAR(50) NOT NULL," +
                     "reason TEXT," +
                     "FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE" +
                     ");";
@@ -72,7 +73,8 @@ public class DatabaseConnection {
 
         } catch (SQLException e) {
             System.err.println("Error initializing database: " + e.getMessage());
-            System.err.println("Please ensure MySQL is running via XAMPP and 'clockinout_db' database exists.");
+            // Updated message to reflect the correct database name you have
+            System.err.println("Please ensure MySQL is running via XAMPP and 'optitrackdatabase' database exists.");
             // In a real application, you might want to log this error and exit.
         }
     }

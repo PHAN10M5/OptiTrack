@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 @RestController // Marks this class as a REST controller
-@RequestMapping("/api/employees") // Base path for employee-related endpoints
+@RequestMapping("/employees") // Base path for employee-related endpoints
 public class EmployeeController {
 
     private final EmployeeService employeeService;
@@ -20,25 +20,25 @@ public class EmployeeController {
         this.employeeService = employeeService;
     }
 
-    @GetMapping // Handles GET requests to /api/employees
+    @GetMapping // Handles GET requests to /employees
     public List<Employee> getAllEmployees() {
         return employeeService.getAllEmployees();
     }
 
-    @GetMapping("/{id}") // Handles GET requests to /api/employees/{id}
+    @GetMapping("/{id}") // Handles GET requests to /employees/{id}
     public ResponseEntity<Employee> getEmployeeById(@PathVariable long id) {
         Optional<Employee> employee = employeeService.getEmployeeById(id);
         return employee.map(ResponseEntity::ok) // If employee found, return 200 OK with employee
                 .orElseGet(() -> ResponseEntity.notFound().build()); // Else, return 404 Not Found
     }
 
-    @PostMapping // Handles POST requests to /api/employees
+    @PostMapping // Handles POST requests to /employees
     @ResponseStatus(HttpStatus.CREATED) // Returns 201 Created status on success
     public Employee createEmployee(@RequestBody Employee employee) { // @RequestBody maps JSON to Employee object
         return employeeService.createEmployee(employee.getFirstName(), employee.getLastName(), employee.getDepartment());
     }
 
-    @PutMapping("/{id}") // Handles PUT requests to /api/employees/{id}
+    @PutMapping("/{id}") // Handles PUT requests to /employees/{id}
     public ResponseEntity<Employee> updateEmployee(@PathVariable long id, @RequestBody Employee employeeDetails) {
         Optional<Employee> existingEmployee = employeeService.getEmployeeById(id);
         if (existingEmployee.isPresent()) {
@@ -53,7 +53,7 @@ public class EmployeeController {
         }
     }
 
-    @DeleteMapping("/{id}") // Handles DELETE requests to /api/employees/{id}
+    @DeleteMapping("/{id}") // Handles DELETE requests to /employees/{id}
     @ResponseStatus(HttpStatus.NO_CONTENT) // Returns 204 No Content on successful deletion
     public ResponseEntity<Void> deleteEmployee(@PathVariable long id) {
         if (employeeService.deleteEmployee(id)) {

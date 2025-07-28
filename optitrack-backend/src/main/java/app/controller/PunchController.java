@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/punches")
+@RequestMapping("/punches")
 public class PunchController {
 
     private final PunchService punchService;
@@ -20,26 +20,26 @@ public class PunchController {
         this.punchService = punchService;
     }
 
-    @PostMapping("/in") // Handles POST requests to /api/punches/in
+    @PostMapping("/in") // Handles POST requests to /punches/in
     @ResponseStatus(HttpStatus.CREATED)
     public Punch clockIn(@RequestBody Map<String, Long> payload) {
         long employeeId = payload.get("employeeId");
         return punchService.recordPunch(employeeId, "IN");
     }
 
-    @PostMapping("/out") // Handles POST requests to /api/punches/out
+    @PostMapping("/out") // Handles POST requests to /punches/out
     @ResponseStatus(HttpStatus.CREATED)
     public Punch clockOut(@RequestBody Map<String, Long> payload) {
         long employeeId = payload.get("employeeId");
         return punchService.recordPunch(employeeId, "OUT");
     }
 
-    @GetMapping("/employee/{employeeId}") // Handles GET requests to /api/punches/employee/{employeeId}
+    @GetMapping("/employee/{employeeId}") // Handles GET requests to /punches/employee/{employeeId}
     public List<Punch> getPunchesForEmployee(@PathVariable long employeeId) {
         return punchService.getPunchesForEmployee(employeeId);
     }
 
-    @GetMapping("/employee/{employeeId}/hours") // Handles GET requests to /api/punches/employee/{employeeId}/hours
+    @GetMapping("/employee/{employeeId}/hours") // Handles GET requests to /punches/employee/{employeeId}/hours
     public ResponseEntity<Double> calculateHoursWorked(
             @PathVariable long employeeId,
             @RequestParam String startTime, // Expects ISO format string from frontend

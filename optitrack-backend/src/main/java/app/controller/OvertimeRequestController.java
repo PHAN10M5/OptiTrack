@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/overtime-requests")
+@RequestMapping("/overtime-requests")
 public class OvertimeRequestController {
 
     private final OvertimeRequestService overtimeRequestService;
@@ -19,7 +19,7 @@ public class OvertimeRequestController {
         this.overtimeRequestService = overtimeRequestService;
     }
 
-    @PostMapping // Handles POST to /api/overtime-requests
+    @PostMapping // Handles POST to /overtime-requests
     @ResponseStatus(HttpStatus.CREATED)
     public OvertimeRequest createOvertimeRequest(@RequestBody OvertimeRequest request) {
         // The ID will be 0 initially and set by the DAO after saving
@@ -31,24 +31,24 @@ public class OvertimeRequestController {
         );
     }
 
-    @GetMapping // Handles GET to /api/overtime-requests
+    @GetMapping // Handles GET to /overtime-requests
     public List<OvertimeRequest> getAllOvertimeRequests() {
         return overtimeRequestService.getAllOvertimeRequests();
     }
 
-    @GetMapping("/{id}") // Handles GET to /api/overtime-requests/{id}
+    @GetMapping("/{id}") // Handles GET to /overtime-requests/{id}
     public ResponseEntity<OvertimeRequest> getOvertimeRequestById(@PathVariable long id) {
         Optional<OvertimeRequest> request = overtimeRequestService.getOvertimeRequestById(id);
         return request.map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/employee/{employeeId}") // Handles GET to /api/overtime-requests/employee/{employeeId}
+    @GetMapping("/employee/{employeeId}") // Handles GET to /overtime-requests/employee/{employeeId}
     public List<OvertimeRequest> getOvertimeRequestsByEmployee(@PathVariable long employeeId) {
         return overtimeRequestService.getOvertimeRequestsByEmployee(employeeId);
     }
 
-    @PutMapping("/{id}/status") // Handles PUT to /api/overtime-requests/{id}/status
+    @PutMapping("/{id}/status") // Handles PUT to /overtime-requests/{id}/status
     public ResponseEntity<OvertimeRequest> updateOvertimeRequestStatus(
             @PathVariable long id,
             @RequestBody String newStatus) { // Expects "APPROVED", "REJECTED", etc.
@@ -62,7 +62,7 @@ public class OvertimeRequestController {
         }
     }
 
-    @DeleteMapping("/{id}") // Handles DELETE to /api/overtime-requests/{id}
+    @DeleteMapping("/{id}") // Handles DELETE to /overtime-requests/{id}
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> deleteOvertimeRequest(@PathVariable long id) {
         if (overtimeRequestService.deleteOvertimeRequest(id)) {
