@@ -173,24 +173,27 @@ export default function AdminOvertimePage() {
         }
     }
 
-
     const handleStatusUpdate = async (requestId: number, newStatus: "APPROVED" | "DENIED") => {
-        const token = user?.authToken;
-        if (!token) {
-            toast({
-                id: "authentication-error",
-                title: "Authentication Error",
-                description: "Authentication token missing. Please log in again.",
-                variant: "destructive",
-            });
-            router.push("/login");
-            return;
-        }
+        // Optimistic UI Update
+        const originalRequests = [...allOvertimeRequests];
+        setAllOvertimeRequests(prevRequests =>
+            prevRequests.map(req =>
+                req.id === requestId ? { ...req, status: newStatus } : req
+            ).sort((a, b) => {
+                if (a.status === "PENDING" && b.status !== "PENDING") return -1;
+                if (a.status !== "PENDING" && b.status === "PENDING") return 1;
+                return new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime();
+            })
+        );
 
         try {
+            const token = user?.authToken;
+            if (!token) throw new Error("Authentication token missing.");
+
             const endpoint = newStatus === "APPROVED" ? "approve" : "reject";
             const url = `${BACKEND_API_BASE_URL}/api/overtime/admin/${endpoint}/${requestId}`;
 
+            // Perform the PUT request without a body or Content-Type header
             const response = await fetch(url, {
                 method: "PUT",
                 headers: {
@@ -198,14 +201,19 @@ export default function AdminOvertimePage() {
                 },
             });
 
+            // Check if the response was successful.
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || `Server responded with status ${response.status}`);
+                // If the response is not OK, we try to get the error message.
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || "Failed to update request status.");
+                } else {
+                    throw new Error("Failed to update status. Server responded with an unexpected format.");
+                }
             }
 
-            // ⭐ The request was successful, so we re-fetch all requests from the backend ⭐
-            await fetchAllOvertimeRequests(token);
-
+            // If the request was successful, display a success toast.
             toast({
                 id: "admin-overtime-status-update",
                 title: "Status Updated!",
@@ -213,7 +221,12 @@ export default function AdminOvertimePage() {
             });
 
         } catch (err) {
+            // Rollback UI on error
+            setAllOvertimeRequests(originalRequests);
+
             console.error("Status update failed:", err);
+            setError(err instanceof Error ? err.message : "An unexpected error occurred during status update.");
+
             toast({
                 id: "admin-overtime-status-update-error",
                 title: "Status Update Failed",

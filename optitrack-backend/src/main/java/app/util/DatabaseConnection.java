@@ -7,17 +7,11 @@ import java.sql.Statement;
 
 public class DatabaseConnection {
     // MySQL connection details for XAMPP
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/optitrackdatabase"; // Using standard MySQL port 3306
-    private static final String DB_USER = "root"; // Default XAMPP MySQL username
-    private static final String DB_PASSWORD = ""; // Default XAMPP MySQL password (empty)
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/optitrackdatabase?useSSL=false&serverTimezone=UTC";
+    private static final String DB_USER = "root";
+    private static final String DB_PASSWORD = "";
 
-    /**
-     * Establishes and returns a connection to the MySQL database.
-     * @return A Connection object.
-     * @throws SQLException if a database access error occurs.
-     */
     public static Connection getConnection() throws SQLException {
-        // Ensure the JDBC driver is loaded (though often not strictly necessary with modern JDBC 4.0+)
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
         } catch (ClassNotFoundException e) {
@@ -27,53 +21,62 @@ public class DatabaseConnection {
         return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
     }
 
-    /**
-     * Initializes the database by creating tables if they do not already exist.
-     * This method should be called once at application startup.
-     */
-    public static void initializeDatabase() {
+    public static void initializeDatabase() throws SQLException {
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
 
-            // Create employees table for MySQL
-            String createEmployeesTableSQL = "CREATE TABLE IF NOT EXISTS employees (" +
-                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," + // Use BIGINT for ID and AUTO_INCREMENT
+            // --- UPDATED employees table creation statement ---
+            stmt.execute("CREATE TABLE IF NOT EXISTS employees (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY," +
                     "first_name VARCHAR(255) NOT NULL," +
                     "last_name VARCHAR(255) NOT NULL," +
-                    "department VARCHAR(255)" +
-                    ");";
-            stmt.execute(createEmployeesTableSQL);
-            System.out.println("Table 'employees' checked/created successfully.");
+                    "email VARCHAR(255) UNIQUE NOT NULL," + // Added email
+                    "department VARCHAR(255)," +
+                    "position VARCHAR(255)," +       // Added position
+                    "contact_number VARCHAR(20)," +  // Added contact_number
+                    "address VARCHAR(255)," +        // Added address
+                    "hire_date DATE" +               // Added hire_date
+                    ");");
+            // --- END UPDATED employees table ---
 
-            // Create punches table for MySQL
-            String createPunchesTableSQL = "CREATE TABLE IF NOT EXISTS punches (" +
-                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," + // Use BIGINT for ID and AUTO_INCREMENT
-                    "employee_id BIGINT NOT NULL," +
-                    "punch_type VARCHAR(10) NOT NULL," + // 'IN' or 'OUT'
-                    "timestamp DATETIME NOT NULL," + // Use DATETIME for timestamps
-                    "FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE" +
-                    ");";
-            stmt.execute(createPunchesTableSQL);
-            System.out.println("Table 'punches' checked/created successfully.");
+            // Create punches table
+            stmt.execute("CREATE TABLE IF NOT EXISTS punches (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "employee_id INT NOT NULL," +
+                    "punch_type VARCHAR(10) NOT NULL," + // e.g., 'IN', 'OUT'
+                    "timestamp DATETIME NOT NULL," +
+                    "FOREIGN KEY (employee_id) REFERENCES employees(id)" +
+                    ");");
 
-            // Create overtime_requests table for MySQL (NEW TABLE)
-            String createOvertimeRequestsTableSQL = "CREATE TABLE IF NOT EXISTS overtime_requests (" +
-                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
-                    "employee_id BIGINT NOT NULL," +
+            // Create overtime_requests table
+            stmt.execute("CREATE TABLE IF NOT EXISTS overtime_requests (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "employee_id INT NOT NULL," +
                     "request_date_time DATETIME NOT NULL," +
                     "requested_hours DOUBLE NOT NULL," +
-                    "status VARCHAR(50) NOT NULL," + // e.g., PENDING, APPROVED, REJECTED
+                    "status VARCHAR(50) NOT NULL DEFAULT 'PENDING'," + // e.g., PENDING, APPROVED, REJECTED
                     "reason TEXT," +
-                    "FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE" +
-                    ");";
-            stmt.execute(createOvertimeRequestsTableSQL);
-            System.out.println("Table 'overtime_requests' checked/created successfully.");
+                    "FOREIGN KEY (employee_id) REFERENCES employees(id)" +
+                    ");");
 
+            // Create or alter users table (THIS IS THE CORRECTED PART)
+            stmt.execute("CREATE TABLE IF NOT EXISTS users (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "employee_id INT UNIQUE NOT NULL," +
+                    "email VARCHAR(255) UNIQUE NOT NULL," +
+                    "password_hash VARCHAR(255) NOT NULL," +
+                    "role VARCHAR(50) NOT NULL," +
+                    "reset_token VARCHAR(255) UNIQUE," +
+                    "token_expiry_date DATETIME," +
+                    "FOREIGN KEY (employee_id) REFERENCES employees(id)" +
+                    ");");
+
+
+            System.out.println("Database schema initialized successfully.");
 
         } catch (SQLException e) {
-            System.err.println("Error initializing database: " + e.getMessage());
-            System.err.println("Please ensure MySQL is running via XAMPP and 'clockinout_db' database exists.");
-            // In a real application, you might want to log this error and exit.
+            System.err.println("Failed to initialize database schema: " + e.getMessage());
+            throw e;
         }
     }
 }

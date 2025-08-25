@@ -1,24 +1,41 @@
 package app.model;
 
+import jakarta.persistence.*; // Use jakarta.persistence for Spring Boot 3+
 import java.time.LocalDateTime;
 import java.util.Objects;
 
+@Entity // Marks this class as a JPA entity
+@Table(name = "punches") // Specifies the table name in the database
 public class Punch {
-    private long id; // Database ID, 0 for new punches not yet saved
-    private long employeeId; // Foreign key to Employee
-    private final String punchType; // "IN" or "OUT"
-    private final LocalDateTime timestamp;
 
-    // Constructor for creating new Punch objects (before saving to DB)
-    public Punch(long employeeId, String punchType, LocalDateTime timestamp) {
-        this(0, employeeId, punchType, timestamp); // Calls the full constructor with default ID
+    @Id // Marks this field as the primary key
+    @GeneratedValue(strategy = GenerationType.IDENTITY) // Auto-increments the ID for MySQL
+    private Long id; // Use Long wrapper type for JPA entities
+
+    // @ManyToOne relationship to Employee.
+    // This creates a foreign key column in the 'punches' table that refers to the 'employees' table.
+    // @JoinColumn specifies the foreign key column name in the 'punches' table (e.g., employee_id).
+    // nullable = false means a punch must always be associated with an employee.
+    @ManyToOne(fetch = FetchType.LAZY) // Lazy fetch to avoid loading Employee unless needed
+    @JoinColumn(name = "employee_id", nullable = false)
+    private Employee employee; // Changed from employeeId (primitive long) to an Employee object
+
+    @Column(name = "punch_type", nullable = false, length = 10) // Maps to 'punch_type', max length 10
+    private String punchType; // "IN" or "OUT"
+
+    @Column(name = "timestamp", nullable = false) // Maps to 'timestamp'
+    private LocalDateTime timestamp;
+
+    // Default no-argument constructor is required by JPA
+    public Punch() {
+        // Required by JPA
     }
 
-    // Full constructor, typically used when loading from the database
-    public Punch(long id, long employeeId, String punchType, LocalDateTime timestamp) {
-        // Input validation
-        if (employeeId <= 0) { // Employee ID must be a valid positive ID from DB
-            throw new IllegalArgumentException("Employee ID must be a positive value.");
+    // Constructor for creating new Punch objects with an Employee object
+    public Punch(Employee employee, String punchType, LocalDateTime timestamp) {
+        // Input validation (kept from your code - good!)
+        if (employee == null || employee.getId() == null) { // Check for valid employee object
+            throw new IllegalArgumentException("Employee cannot be null and must have an ID.");
         }
         if (!"IN".equals(punchType) && !"OUT".equals(punchType)) {
             throw new IllegalArgumentException("Punch type must be 'IN' or 'OUT'.");
@@ -27,19 +44,24 @@ public class Punch {
             throw new IllegalArgumentException("Timestamp cannot be null.");
         }
 
-        this.id = id;
-        this.employeeId = employeeId;
+        this.employee = employee;
         this.punchType = punchType;
         this.timestamp = timestamp;
     }
 
     // --- Getters ---
-    public long getId() {
+    public Long getId() { // Changed to Long
         return id;
     }
 
-    public long getEmployeeId() {
-        return employeeId;
+    public Employee getEmployee() { // Returns the Employee object
+        return employee;
+    }
+
+    // You might still need employeeId getter for legacy code or DTOs,
+    // but the primary way to access the associated employee is via the object.
+    public Long getEmployeeId() {
+        return employee != null ? employee.getId() : null;
     }
 
     public String getPunchType() {
@@ -50,24 +72,34 @@ public class Punch {
         return timestamp;
     }
 
-    // --- Setter for ID (primarily for DAO after DB insertion) ---
-    public void setId(long id) {
-        // This setter is primarily for the DAO layer to set the ID after insertion.
-        // It's not part of typical public API for domain objects, but necessary for DB sync.
-        if (this.id != 0 && this.id != id) {
-            throw new IllegalStateException("Punch ID cannot be changed once set (unless it's 0).");
-        }
+    // --- Setters ---
+    public void setId(Long id) { // Changed to Long
         this.id = id;
     }
 
-    // No setters for core attributes (employeeId, punchType, timestamp) as Punch objects are immutable once created.
-    // A punch represents a historical event; it shouldn't be modified after creation.
+    public void setEmployee(Employee employee) { // Setter for the Employee object
+        this.employee = employee;
+    }
+
+    public void setPunchType(String punchType) {
+        if (!"IN".equals(punchType) && !"OUT".equals(punchType)) {
+            throw new IllegalArgumentException("Punch type must be 'IN' or 'OUT'.");
+        }
+        this.punchType = punchType;
+    }
+
+    public void setTimestamp(LocalDateTime timestamp) {
+        if (timestamp == null) {
+            throw new IllegalArgumentException("Timestamp cannot be null.");
+        }
+        this.timestamp = timestamp;
+    }
 
     @Override
     public String toString() {
         return "Punch{" +
                 "id=" + id +
-                ", employeeId=" + employeeId +
+                ", employeeId=" + (employee != null ? employee.getId() : "null") + // Safely get employee ID
                 ", punchType='" + punchType + '\'' +
                 ", timestamp=" + timestamp +
                 '}';
@@ -78,20 +110,14 @@ public class Punch {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Punch punch = (Punch) o;
-        // For equals, we consider punches equal if their database IDs match.
-        // If IDs are 0 (not yet persisted), then compare by all attributes.
-        if (id != 0 && punch.id != 0) {
-            return id == punch.id;
-        }
-        return employeeId == punch.employeeId &&
-                Objects.equals(punchType, punch.punchType) &&
-                Objects.equals(timestamp, punch.timestamp);
+        // For persisted entities, equality should primarily be based on ID.
+        // Check for non-null IDs to ensure they are persisted entities.
+        return id != null && Objects.equals(id, punch.id);
     }
 
     @Override
     public int hashCode() {
-        // If ID is set, use it for hash code. Otherwise, use all attributes.
-        return id != 0 ? Objects.hash(id) : Objects.hash(employeeId, punchType, timestamp);
+        // For persisted entities, hash code should primarily be based on ID.
+        return id != null ? Objects.hash(id) : Objects.hash(employee, punchType, timestamp); // Use employee object for hash if id is null
     }
 }
-
