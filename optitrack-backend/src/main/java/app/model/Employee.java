@@ -1,47 +1,92 @@
 package app.model;
 
+import jakarta.persistence.*;
+import java.time.LocalDate; // Import LocalDate for hireDate, assuming it will be added later
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+@Entity
+@Table(name = "employees")
 public class Employee {
-    private long id; // Database ID, 0 for new employees not yet saved
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "first_name", nullable = false)
     private String firstName;
+
+    @Column(name = "last_name", nullable = false)
     private String lastName;
+
+    // --- NEW FIELDS ADDED HERE ---
+    @Column(nullable = false, unique = true) // Email should be unique and not null
+    private String email;
+
+    @Column(name = "contact_number") // Explicit column name for phone number
+    private String contactNumber;
+
+    @Column(name = "address") // Explicit column name for address
+    private String address;
+
+    @Column(name = "hire_date") // Assuming hireDate will be part of the Employee entity
+    private LocalDate hireDate;
+
+    @Column(name = "position") // Add this column mapping
+    private String position;
+    // --- END NEW FIELDS ---
+
+
+    @Column(name = "department")
     private String department;
-    private final List<Punch> punches; // In-memory list of punches for this employee
 
-    // Constructor for creating new Employee objects (before saving to DB)
+    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Punch> punches = new ArrayList<>();
+
+    public Employee() {
+    }
+
+    // Updated constructor to include new fields.
+    // Ensure you use the correct constructor when creating new Employee objects.
+    public Employee(String firstName, String lastName, String email, String department, String position, String contactNumber, String address, LocalDate hireDate) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.email = email; // Initialize new field
+        this.department = department;
+        this.position = position;
+        this.contactNumber = contactNumber; // Initialize new field
+        this.address = address; // Initialize new field
+        this.hireDate = hireDate; // Initialize new field
+    }
+
+    // You can keep your other constructors if they are still used,
+    // but consider if they lead to partially initialized Employee objects.
+    // For a robust system, having one main constructor or using a builder pattern is often better.
     public Employee(String firstName, String lastName) {
-        this(0, firstName, lastName, null); // Calls the full constructor with default ID and department
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.department = null;
     }
 
-    // Constructor for creating new Employee objects with department
     public Employee(String firstName, String lastName, String department) {
-        this(0, firstName, lastName, department);
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.department = department;
     }
 
-    // Full constructor, typically used when loading from the database
-    public Employee(long id, String firstName, String lastName, String department) {
-        // Input validation
-        if (firstName == null || firstName.trim().isEmpty()) {
-            throw new IllegalArgumentException("First name cannot be null or empty.");
-        }
-        if (lastName == null || lastName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Last name cannot be null or empty.");
-        }
-
+    public Employee(Long id, String firstName, String lastName, String department) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
         this.department = department;
-        this.punches = new ArrayList<>(); // Initialize the list
     }
 
+
     // --- Getters ---
-    public long getId() {
+    public Long getId() {
         return id;
     }
 
@@ -61,26 +106,34 @@ public class Employee {
         return department;
     }
 
-    /**
-     * Returns an unmodifiable view of the list of punches for this employee.
-     * This prevents external code from directly modifying the internal list,
-     * enforcing encapsulation.
-     * @return An unmodifiable List of Punch objects.
-     */
-    public List<Punch> getPunches() {
-        return Collections.unmodifiableList(punches);
+    // --- NEW GETTERS ---
+    public String getEmail() {
+        return email;
     }
 
-    // --- Setters (for mutable attributes) ---
-    // Note: ID is typically set by the database, so no public setter for it.
-    // If loading from DB, the constructor handles it.
+    public String getContactNumber() {
+        return contactNumber;
+    }
 
-    public void setId(long id) {
-        // This setter is primarily for the DAO layer to set the ID after insertion.
-        // It's not part of typical public API for domain objects, but necessary for DB sync.
-        if (this.id != 0 && this.id != id) {
-            throw new IllegalStateException("Employee ID cannot be changed once set (unless it's 0).");
-        }
+    public String getAddress() {
+        return address;
+    }
+
+    public LocalDate getHireDate() {
+        return hireDate;
+    }
+
+    public String getPosition() {
+        return position;
+    }
+    // --- END NEW GETTERS ---
+
+    public List<Punch> getPunches() {
+        return this.punches;
+    }
+
+    // --- Setters ---
+    public void setId(Long id) {
         this.id = id;
     }
 
@@ -99,45 +152,58 @@ public class Employee {
     }
 
     public void setDepartment(String department) {
-        this.department = department; // Department can be null
+        this.department = department;
     }
 
-    // --- Employee-specific Methods for in-memory punch management ---
-    /**
-     * Adds a new punch event to the employee's in-memory record.
-     * Note: This does NOT save the punch to the database. The PunchService
-     * is responsible for database persistence.
-     * @param punch The Punch object to add.
-     * @throws IllegalArgumentException if the punch is null or belongs to a different employee.
-     */
+    // --- NEW SETTERS ---
+    public void setEmail(String email) {
+        // You might add validation here if needed, e.g., for format
+        this.email = email;
+    }
+
+    public void setContactNumber(String contactNumber) {
+        this.contactNumber = contactNumber;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public void setHireDate(LocalDate hireDate) {
+        this.hireDate = hireDate;
+    }
+
+    public void setPosition(String position) {
+        this.position = position;
+    }
+    // --- END NEW SETTERS ---
+
+
     public void addPunch(Punch punch) {
         if (punch == null) {
             throw new IllegalArgumentException("Punch cannot be null.");
         }
-        // Ensure the punch belongs to this employee (by comparing employee IDs)
-        if (this.id != 0 && punch.getEmployeeId() != this.id) {
-            throw new IllegalArgumentException("Punch's employee ID does not match this employee.");
-        }
+        punch.setEmployee(this);
         this.punches.add(punch);
-        // Keep punches sorted by timestamp for easy retrieval of last punch
-        punches.sort(Comparator.comparing(Punch::getTimestamp));
+        this.punches.sort(Comparator.comparing(Punch::getTimestamp));
     }
 
-    /**
-     * Returns the most recent punch (in or out) for this employee from the in-memory list.
-     * @return The last Punch object, or null if no punches exist.
-     */
+    public void removePunch(Punch punch) {
+        if (punch == null) {
+            throw new IllegalArgumentException("Punch cannot be null.");
+        }
+        if (this.punches.remove(punch)) {
+            punch.setEmployee(null);
+        }
+    }
+
     public Punch getLastPunch() {
         if (punches.isEmpty()) {
             return null;
         }
-        return punches.get(punches.size() - 1); // List is kept sorted by timestamp
+        return punches.get(punches.size() - 1);
     }
 
-    /**
-     * Determines if the employee is currently clocked in based on the last punch type.
-     * @return true if the last punch was an 'IN' punch, false otherwise.
-     */
     public boolean isClockedIn() {
         Punch lastPunch = getLastPunch();
         return lastPunch != null && "IN".equals(lastPunch.getPunchType());
@@ -149,7 +215,11 @@ public class Employee {
                 "id=" + id +
                 ", firstName='" + firstName + '\'' +
                 ", lastName='" + lastName + '\'' +
+                ", email='" + email + '\'' + // Include email in toString
                 ", department='" + department + '\'' +
+                ", contactNumber='" + contactNumber + '\'' + // Include contactNumber
+                ", address='" + address + '\'' +             // Include address
+                ", hireDate=" + hireDate +                   // Include hireDate
                 ", totalPunches=" + punches.size() +
                 '}';
     }
@@ -159,18 +229,11 @@ public class Employee {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Employee employee = (Employee) o;
-        // For equals, we consider employees equal if their database IDs match.
-        // If IDs are 0 (not yet persisted), then compare by name.
-        if (id != 0 && employee.id != 0) {
-            return id == employee.id;
-        }
-        return Objects.equals(firstName, employee.firstName) &&
-                Objects.equals(lastName, employee.lastName);
+        return id != null && Objects.equals(id, employee.id);
     }
 
     @Override
     public int hashCode() {
-        // If ID is set, use it for hash code. Otherwise, use name.
-        return id != 0 ? Objects.hash(id) : Objects.hash(firstName, lastName);
+        return id != null ? Objects.hash(id) : Objects.hash(firstName, lastName, email); // Include email in hashCode
     }
 }

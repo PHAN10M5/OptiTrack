@@ -1,117 +1,112 @@
 package app.service;
 
-import app.dao.EmployeeDAO; // Changed import
-import app.model.Employee; // Changed import
+import app.model.Employee;
+import app.dto.EmployeeDto;
+import app.repository.EmployeeRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.SQLException;
+import java.time.LocalDate; // Import LocalDate for hireDate
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class EmployeeService {
-    private final EmployeeDAO employeeDAO;
 
-    public EmployeeService(EmployeeDAO employeeDAO) {
-        this.employeeDAO = employeeDAO;
+    private final EmployeeRepository employeeRepository;
+
+    public EmployeeService(EmployeeRepository employeeRepository) {
+        this.employeeRepository = employeeRepository;
     }
 
+    public List<EmployeeDto> findAllEmployees() {
+        return employeeRepository.findAll().stream()
+                .map(employee -> new EmployeeDto(
+                        employee.getId(),
+                        employee.getFirstName(),
+                        employee.getLastName(),
+                        employee.getDepartment()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    // --- UPDATED createEmployee METHOD ---
     /**
      * Creates a new employee and saves them to the database.
+     * Checks for duplicate email before saving.
      *
-     * @param firstName The employee's first name.
-     * @param lastName The employee's last name.
-     * @param department The employee's department (can be null).
+     * @param employee The Employee object containing all details.
      * @return The newly created Employee object with its database ID.
-     * @throws RuntimeException if a database error occurs.
+     * @throws IllegalArgumentException if an employee with the same email already exists.
      */
-    public Employee createEmployee(String firstName, String lastName, String department) {
-        try {
-            Employee employee = new Employee(firstName, lastName, department);
-            return employeeDAO.save(employee);
-        } catch (SQLException e) {
-            System.err.println("Error creating employee: " + e.getMessage());
-            throw new RuntimeException("Failed to create employee.", e);
+    public Employee createEmployee(Employee employee) {
+        // Ensure email is not null and check for uniqueness
+        if (employee.getEmail() == null || employee.getEmail().trim().isEmpty()) {
+            throw new IllegalArgumentException("Email cannot be null or empty for new employees.");
         }
+        if (employeeRepository.findByEmail(employee.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("An employee with this email already exists.");
+        }
+
+        // JpaRepository's save() method handles both insert and update based on ID presence
+        return employeeRepository.save(employee);
     }
 
-    /**
-     * Retrieves an employee by their ID.
-     *
-     * @param id The ID of the employee.
-     * @return An Optional containing the Employee if found, or empty if not.
-     * @throws RuntimeException if a database error occurs.
-     */
-    public Optional<Employee> getEmployeeById(long id) {
-        try {
-            return employeeDAO.findById(id);
-        } catch (SQLException e) {
-            System.err.println("Error retrieving employee by ID: " + e.getMessage());
-            throw new RuntimeException("Failed to retrieve employee.", e);
-        }
+    // --- Get methods remain largely the same, but ensure they can retrieve new fields ---
+    public Optional<Employee> getEmployeeById(Long id) {
+        return employeeRepository.findById(id);
     }
 
-    /**
-     * Retrieves an employee by their first and last name.
-     *
-     * @param firstName The first name of the employee.
-     * @param lastName The last name of the employee.
-     * @return An Optional containing the Employee if found, or empty if not.
-     * @throws RuntimeException if a database error occurs.
-     */
     public Optional<Employee> getEmployeeByName(String firstName, String lastName) {
-        try {
-            return employeeDAO.findByName(firstName, lastName);
-        } catch (SQLException e) {
-            System.err.println("Error retrieving employee by name: " + e.getMessage());
-            throw new RuntimeException("Failed to retrieve employee.", e);
-        }
+        return employeeRepository.findByFirstNameAndLastName(firstName, lastName);
     }
 
-    /**
-     * Retrieves all employees from the database.
-     *
-     * @return A List of all Employee objects.
-     * @throws RuntimeException if a database error occurs.
-     */
     public List<Employee> getAllEmployees() {
-        try {
-            return employeeDAO.findAll();
-        } catch (SQLException e) {
-            System.err.println("Error retrieving all employees: " + e.getMessage());
-            throw new RuntimeException("Failed to retrieve all employees.", e);
-        }
+        return employeeRepository.findAll();
     }
 
+    // --- UPDATED updateEmployee METHOD ---
     /**
      * Updates an existing employee's details in the database.
+     * Handles specific fields including email, contact number, and address.
+     * Checks for duplicate email if the email is being changed.
      *
-     * @param employee The Employee object with updated details.
-     * @return true if the update was successful, false otherwise.
-     * @throws RuntimeException if a database error occurs.
+     * @param id The ID of the employee to update.
+     * @param updatedEmployee The Employee object with updated details.
+     * @return The updated Employee object.
+     * @throws RuntimeException if the employee is not found.
+     * @throws IllegalArgumentException if the updated email conflicts with another employee.
      */
-    public boolean updateEmployee(Employee employee) {
-        try {
-            return employeeDAO.update(employee);
-        } catch (SQLException e) {
-            System.err.println("Error updating employee: " + e.getMessage());
-            throw new RuntimeException("Failed to update employee.", e);
-        }
+    public Employee updateEmployee(Long id, Employee updatedEmployee) {
+        return employeeRepository.findById(id).map(existingEmployee -> {
+            // Check for duplicate email ONLY if the email is being changed
+            if (!existingEmployee.getEmail().equals(updatedEmployee.getEmail())) {
+                if (employeeRepository.findByEmail(updatedEmployee.getEmail()).isPresent()) {
+                    throw new IllegalArgumentException("Another employee with this email already exists.");
+                }
+            }
+
+            existingEmployee.setFirstName(updatedEmployee.getFirstName());
+            existingEmployee.setLastName(updatedEmployee.getLastName());
+            existingEmployee.setEmail(updatedEmployee.getEmail()); // Update email
+            existingEmployee.setDepartment(updatedEmployee.getDepartment());
+            existingEmployee.setPosition(updatedEmployee.getPosition()); // Ensure position is handled if present
+            existingEmployee.setContactNumber(updatedEmployee.getContactNumber()); // Update contactNumber
+            existingEmployee.setAddress(updatedEmployee.getAddress());             // Update address
+            existingEmployee.setHireDate(updatedEmployee.getHireDate());           // Update hireDate
+
+            return employeeRepository.save(existingEmployee);
+        }).orElseThrow(() -> new RuntimeException("Employee not found with ID: " + id));
     }
 
-    /**
-     * Deletes an employee from the database.
-     *
-     * @param id The ID of the employee to delete.
-     * @return true if the deletion was successful, false otherwise.
-     * @throws RuntimeException if a database error occurs.
-     */
-    public boolean deleteEmployee(long id) {
-        try {
-            return employeeDAO.delete(id);
-        } catch (SQLException e) {
-            System.err.println("Error deleting employee: " + e.getMessage());
-            throw new RuntimeException("Failed to delete employee.", e);
+
+    public boolean deleteEmployee(Long id) {
+        if (employeeRepository.existsById(id)) {
+            employeeRepository.deleteById(id);
+            return true;
         }
+        return false;
     }
 }

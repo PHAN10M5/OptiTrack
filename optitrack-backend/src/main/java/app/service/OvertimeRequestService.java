@@ -1,91 +1,123 @@
 package app.service;
 
-import app.dao.EmployeeDAO; // To validate employee existence
-import app.dao.OvertimeRequestDAO;
+import app.exception.ResourceNotFoundException;
 import app.model.Employee;
 import app.model.OvertimeRequest;
+import app.payload.request.OvertimeRequestDTO;
+import app.repository.EmployeeRepository;
+import app.repository.OvertimeRequestRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.SQLException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-@Service // Marks this as a Spring Service component
+@Service
+@Transactional
 public class OvertimeRequestService {
-    private final OvertimeRequestDAO overtimeRequestDAO;
-    private final EmployeeDAO employeeDAO; // To check if employee exists
 
-    public OvertimeRequestService(OvertimeRequestDAO overtimeRequestDAO, EmployeeDAO employeeDAO) {
-        this.overtimeRequestDAO = overtimeRequestDAO;
-        this.employeeDAO = employeeDAO;
+    private final OvertimeRequestRepository overtimeRequestRepository;
+    private final EmployeeRepository employeeRepository;
+
+    public OvertimeRequestService(OvertimeRequestRepository overtimeRequestRepository, EmployeeRepository employeeRepository) {
+        this.overtimeRequestRepository = overtimeRequestRepository;
+        this.employeeRepository = employeeRepository;
     }
 
-    public OvertimeRequest createOvertimeRequest(long employeeId, LocalDateTime requestDateTime, double requestedHours, String reason) {
-        try {
-            // Validate employee existence
-            Optional<Employee> employee = employeeDAO.findById(employeeId);
-            if (employee.isEmpty()) {
-                throw new IllegalArgumentException("Employee with ID " + employeeId + " not found.");
-            }
+    // --- NEW METHODS FOR THE REST API ENDPOINTS ---
 
-            OvertimeRequest newRequest = new OvertimeRequest(employeeId, requestDateTime, requestedHours, reason);
-            return overtimeRequestDAO.save(newRequest);
-        } catch (SQLException e) {
-            System.err.println("Error creating overtime request: " + e.getMessage());
-            throw new RuntimeException("Failed to create overtime request.", e);
-        }
+    /**
+     * Submits a new overtime request from the employee dashboard.
+     * This method is designed to be used with a DTO from a REST API endpoint.
+     *
+     * @param employeeId The ID of the authenticated employee.
+     * @param requestDTO The DTO containing the request details.
+     * @return The newly created OvertimeRequest object.
+     */
+    @Transactional
+    public OvertimeRequest submitRequest(Long employeeId, OvertimeRequestDTO requestDTO) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with ID: " + employeeId));
+
+        OvertimeRequest newRequest = new OvertimeRequest(
+                employee,
+                LocalDateTime.now(),
+                requestDTO.getOvertimeDate(),
+                requestDTO.getRequestedHours(),
+                requestDTO.getReason()
+        );
+
+        return overtimeRequestRepository.save(newRequest);
     }
 
-    public Optional<OvertimeRequest> getOvertimeRequestById(long id) {
-        try {
-            return overtimeRequestDAO.findById(id);
-        } catch (SQLException e) {
-            System.err.println("Error retrieving overtime request by ID: " + e.getMessage());
-            throw new RuntimeException("Failed to retrieve overtime request.", e);
-        }
+    /**
+     * Retrieves all pending overtime requests for a specific employee.
+     * @param employeeId The ID of the employee.
+     * @return A list of pending OvertimeRequest objects.
+     */
+    @Transactional(readOnly = true)
+    public List<OvertimeRequest> getPendingRequestsForEmployee(Long employeeId) {
+        return overtimeRequestRepository.findByEmployee_IdAndStatus(employeeId, "PENDING");
     }
 
-    public List<OvertimeRequest> getOvertimeRequestsByEmployee(long employeeId) {
-        try {
-            return overtimeRequestDAO.findByEmployeeId(employeeId);
-        } catch (SQLException e) {
-            System.err.println("Error retrieving overtime requests for employee " + employeeId + ": " + e.getMessage());
-            throw new RuntimeException("Failed to retrieve overtime requests.", e);
-        }
+    /**
+     * Retrieves all approved overtime requests for a specific employee.
+     * @param employeeId The ID of the employee.
+     * @return A list of approved OvertimeRequest objects.
+     */
+    @Transactional(readOnly = true)
+    public List<OvertimeRequest> getApprovedRequestsForEmployee(Long employeeId) {
+        return overtimeRequestRepository.findByEmployee_IdAndStatus(employeeId, "APPROVED");
     }
 
-    public List<OvertimeRequest> getAllOvertimeRequests() {
-        try {
-            return overtimeRequestDAO.findAll();
-        } catch (SQLException e) {
-            System.err.println("Error retrieving all overtime requests: " + e.getMessage());
-            throw new RuntimeException("Failed to retrieve all overtime requests.", e);
-        }
+    /**
+     * Retrieves all pending overtime requests for all employees (for Admin view).
+     * @return A list of all pending OvertimeRequest objects.
+     */
+    @Transactional(readOnly = true)
+    public List<OvertimeRequest> getAllPendingRequests() {
+        return overtimeRequestRepository.findByStatus("PENDING");
     }
 
-    public OvertimeRequest updateOvertimeRequestStatus(long id, String newStatus) {
-        try {
-            Optional<OvertimeRequest> existingRequestOptional = overtimeRequestDAO.findById(id);
-            if (existingRequestOptional.isEmpty()) {
-                throw new IllegalArgumentException("Overtime request with ID " + id + " not found.");
-            }
-            OvertimeRequest request = existingRequestOptional.get();
-            request.setStatus(newStatus); // Update the status
-            overtimeRequestDAO.update(request); // Save changes to DB
-            return request;
-        } catch (SQLException e) {
-            System.err.println("Error updating overtime request status: " + e.getMessage());
-            throw new RuntimeException("Failed to update overtime request status.", e);
+    /**
+     * Approves an overtime request by its ID.
+     * @param requestId The ID of the request to approve.
+     * @return The approved OvertimeRequest object.
+     * @throws ResourceNotFoundException if the request is not found.
+     * @throws IllegalStateException if the request is not in a PENDING status.
+     */
+    @Transactional
+    public OvertimeRequest approveRequest(Long requestId) {
+        OvertimeRequest request = overtimeRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Overtime Request not found with ID: " + requestId));
+
+        if (!"PENDING".equals(request.getStatus())) {
+            throw new IllegalStateException("Only pending requests can be approved.");
         }
+
+        request.setStatus("APPROVED");
+        return overtimeRequestRepository.save(request);
     }
 
-    public boolean deleteOvertimeRequest(long id) {
-        try {
-            return overtimeRequestDAO.delete(id);
-        } catch (SQLException e) {
-            System.err.println("Error deleting overtime request: " + e.getMessage());
-            throw new RuntimeException("Failed to delete overtime request.", e);
+    /**
+     * Rejects an overtime request by its ID.
+     * @param requestId The ID of the request to reject.
+     * @return The rejected OvertimeRequest object.
+     * @throws ResourceNotFoundException if the request is not found.
+     * @throws IllegalStateException if the request is not in a PENDING status.
+     */
+    @Transactional
+    public OvertimeRequest rejectRequest(Long requestId) {
+        OvertimeRequest request = overtimeRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Overtime Request not found with ID: " + requestId));
+
+        if (!"PENDING".equals(request.getStatus())) {
+            throw new IllegalStateException("Only pending requests can be rejected.");
         }
+
+        request.setStatus("REJECTED");
+        return overtimeRequestRepository.save(request);
     }
 }
